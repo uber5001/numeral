@@ -1,3 +1,5 @@
+var resize = require('./modules/resize.js');
+
 var stage = new PIXI.Stage(0xFFFFFF);
 
 var renderer = PIXI.autoDetectRenderer(320, 240, null, false, true);
@@ -22,6 +24,4 @@ function animate() {
 	circle.position.x++;
 } animate();
 
-window.onresize = function() {
-	renderer.resize(window.innerWidth  * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio);
-}; window.onresize();
+resize(renderer, window).init();
