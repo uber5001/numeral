@@ -16,7 +16,7 @@ gulp.task('copycode', function() {
 });
 gulp.task('bower', function() {
 	return bower()
-		.pipe(gulp.dest('build/lib/'))
+		.pipe(gulp.dest('src/lib/'))
 });
 gulp.task('build',['browserify','bower', 'copycode']);
 gulp.task('default',['build']);
