@@ -1,0 +1,171 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="initial-scale=1,user-scalable=no,width=device-width">
+<style>
+html, body {
+	height: 100%; width: 100%; margin: 0;
+}
+canvas {
+	display: block;
+}
+</style>
+<script>
+	window.onload = function() {
+		localStorage.level = localStorage.level || 1;
+		var context = canvas.getContext("2d");
+		var game = new (function() {
+			var drawables = [];
+			var _mode = "none";
+			var board = null;
+			var screen = (function() {
+				var actors = [];
+				this.add = function(actor) {
+					actors.push(actor);
+				}
+				this.remove = function(actor) {
+					for (var i in actors) {
+						if (actors[i] == actor) {
+							actors.splice(i,1);
+						}
+					}
+				}
+				function animate() {
+					requestAnimationFrame(animate());
+					for (var i in actors) this.actors[i].render();
+				} animate();
+			})();
+
+			//background
+			screen.add({
+				render: function() {
+					context.clearRect(0, 0, window.innerWidth, window.innerHeight);
+				}
+			});
+
+			var boardDefinitions = {
+				grid: function() {
+					//this is at most, a 7x7 board, where the starting position is ALWAYS in the middle.
+					var boardSize = 7;
+					var center = Math.floor(boardSize/2);
+					var gameState = [
+						0, 0, 0, 0, 0, 0, 0,
+						0, 0, 0, 0, 0, 0, 0,
+						0, 0, 0, 0, 0, 0, 0,
+						0, 0, 0, new DrawDot(0, 0), 0, 0, 0,
+						0, 0, 0, 0, 0, 0, 0,
+						0, 0, 0, 0, 0, 0, 0,
+						0, 0, 0, 0, 0, 0, 0
+					]
+					
+					this.render = function() {
+						
+					}
+				}
+			}
+
+			Object.defineProperty(this, "mode", {
+				get: function() {
+					return _mode;
+				},
+				set: function(val) {
+					for (var i in boardDefinitions) {
+						if (i == val) {
+							board = new boardDefinitions[i]();
+							_mode = i;
+							break;
+						}
+					}
+				}
+			})
+		})();
+		
+		//A circle that can handle itself for rendering.
+		function DrawDot(x, y) {
+			var duration = 300;
+			var startTime = Date.now();
+			var destX = x;
+			var destY = y;
+			var mergeWith = null;
+
+			var listener = null;
+			this.addEventListener = function(event, callback) {
+				if (event == "end") {
+					listener = callback;
+				}
+			}
+
+			Object.defineProperty(this, "x", {get:function(){return x;}});
+			Object.defineProperty(this, "y", {get:function(){return y;}});
+
+			this.render = function() {
+				var completion = Math.min(1, (Date.now() - startTime) / duration);
+				var renderX, renderY;
+				if (completion == 1) {
+					renderX = x = destX;
+					renderY = y = destY;
+					listener();
+					//probably need this for gc
+					listener = null;
+				} else {
+					//only part of the way to dest...
+					var dist = f(completion);
+					var dx = destX - x;
+					var dy = destY - y;
+					renderX = x + dist*dx;
+					renderY = y + dist*dy;
+				}
+				context.beginPath();
+				context.arc(renderX, renderY, radius, 0, 2*Math.PI, false);
+				if (mergeWith) {
+					context.arc(mergeWith.x, mergeWith.y, radius, 0, 2*Math.PI, true);
+				}
+				context.fill();
+				
+			}
+			
+			//move to the location of another dot,
+			//and delete the other dot when this animation is over.
+			this.moveTo = function(x, y) {
+				mergeWith = null;
+				startTime = Date.now();
+				destX = x;
+				destY = y;
+			}
+
+			//move to the location of another dot,
+			//subtractively render on top of that dot,
+			//and delete BOTH dots when this animation is over.
+			this.eclipse = function(otherDot) {
+				mergeWith = otherDot;
+				startTime = Date.now();
+				destX = otherDot.x;
+				destY = otherDot.y;
+			}
+		}
+
+		//ease timing function
+		function f(x) {
+			return x;
+		}
+		
+		var centerX;
+		var centerY;
+		var radius = 1;
+		var spacing = 3;
+		var totalSpace = 30;
+		window.onresize = function() {
+			canvas.width = window.innerWidth;
+			canvas.height = window.innerHeight;
+			centerX = window.innerWidth / 2;
+			centerY = window.innerHeight / 2;
+			scale = Math.min(window.innerWidth, window.innerHeight) / totalSpace;
+		}; window.onresize();
+	}
+</script>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+</body>
+</html>
