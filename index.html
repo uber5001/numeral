@@ -15,51 +15,81 @@ canvas {
 	window.onload = function() {
 		localStorage.level = localStorage.level || 1;
 		var context = canvas.getContext("2d");
+		var screen = new (function() {
+			var actors = [];
+			var toRemove = [];
+			this.add = function(actor) {
+				actors.push(actor);
+			}
+			this.remove = function(actor) {
+				toRemove.push(actor);
+			}
+			function animate() {
+				requestAnimationFrame(animate);
+				for (var i in toRemove) {	
+					for (var j in actors) {
+						if (actors[j] == toRemove[i]) {
+							actors.splice(j,1);
+						}
+					}
+				}
+				toRemove = [];
+				for (var i in actors) actors[i].render();
+			} animate();
+		})();
+
+		//background
+		screen.add({
+			render: function() {
+				context.clearRect(0, 0, window.innerWidth, window.innerHeight);
+			}
+		});
 		var game = new (function() {
 			var drawables = [];
 			var _mode = "none";
 			var board = null;
-			var screen = (function() {
-				var actors = [];
-				this.add = function(actor) {
-					actors.push(actor);
-				}
-				this.remove = function(actor) {
-					for (var i in actors) {
-						if (actors[i] == actor) {
-							actors.splice(i,1);
-						}
-					}
-				}
-				function animate() {
-					requestAnimationFrame(animate());
-					for (var i in actors) this.actors[i].render();
-				} animate();
-			})();
-
-			//background
-			screen.add({
-				render: function() {
-					context.clearRect(0, 0, window.innerWidth, window.innerHeight);
-				}
-			});
+			
+			this.tap = function(x, y) {
+				board.tap(x, y);
+			}
 
 			var boardDefinitions = {
 				grid: function() {
 					//this is at most, a 7x7 board, where the starting position is ALWAYS in the middle.
-					var boardSize = 7;
-					var center = Math.floor(boardSize/2);
+					//var boardSize = 7;
+					//var center = Math.floor(boardSize/2);
 					var gameState = [
-						0, 0, 0, 0, 0, 0, 0,
-						0, 0, 0, 0, 0, 0, 0,
-						0, 0, 0, 0, 0, 0, 0,
-						0, 0, 0, new DrawDot(0, 0), 0, 0, 0,
-						0, 0, 0, 0, 0, 0, 0,
-						0, 0, 0, 0, 0, 0, 0,
-						0, 0, 0, 0, 0, 0, 0
-					]
+						[0, 0, 0, 0, 0, 0, 0],
+						[0, 0, 0, 0, 0, 0, 0],
+						[0, 0, 0, 0, 0, 0, 0],
+						[0, 0, 0, new DrawDot(3, 3), 0, 0, 0],
+						[0, 0, 0, 0, 0, 0, 0],
+						[0, 0, 0, 0, 0, 0, 0],
+						[0, 0, 0, 0, 0, 0, 0]
+					];
 					
-					this.render = function() {
+					this.tap = function(x, y) {
+						if (gameState[x][y]) {
+							var dot = gameState[x][y];
+							
+							function toggleTo(tx, ty) {
+								if (gameState[tx][ty]) {
+									gameState[x][y].cloneMergeWith(gameState[tx][ty]);
+									gameState[tx][ty] = 0;
+								} else {
+									gameState[tx][ty] = gameState[x][y].cloneTo(tx, ty);
+								}
+							}
+							toggleTo(x+1, y);
+							toggleTo(x-1, y);
+							toggleTo(x, y+1);
+							toggleTo(x, y-1);
+							gameState[x][y].done();
+							gameState[x][y] = 0;
+
+						} else {
+							console.log("invalid move!");
+						}
 						
 					}
 				}
@@ -80,7 +110,7 @@ canvas {
 				}
 			})
 		})();
-		
+
 		//A circle that can handle itself for rendering.
 		function DrawDot(x, y) {
 			var duration = 300;
@@ -88,26 +118,20 @@ canvas {
 			var destX = x;
 			var destY = y;
 			var mergeWith = null;
-
-			var listener = null;
-			this.addEventListener = function(event, callback) {
-				if (event == "end") {
-					listener = callback;
-				}
-			}
+			screen.add(this);
 
 			Object.defineProperty(this, "x", {get:function(){return x;}});
 			Object.defineProperty(this, "y", {get:function(){return y;}});
 
 			this.render = function() {
-				var completion = Math.min(1, (Date.now() - startTime) / duration);
+				var completion = (Date.now() - startTime) / duration;
 				var renderX, renderY;
-				if (completion == 1) {
-					renderX = x = destX;
-					renderY = y = destY;
-					listener();
-					//probably need this for gc
-					listener = null;
+				if (completion >= 1) {
+					renderX = (x = destX);
+					renderY = (y = destY);
+					if (mergeWith) {
+						screen.remove(this);
+					}
 				} else {
 					//only part of the way to dest...
 					var dist = f(completion);
@@ -134,34 +158,68 @@ canvas {
 				destY = y;
 			}
 
+			this.cloneTo = function(x, y) {
+				var clone = new DrawDot(destX, destY);
+				clone.moveTo(x,y);
+				return clone;
+			}
+
+			this.done = function() {
+				screen.remove(this);
+			}
+
 			//move to the location of another dot,
 			//subtractively render on top of that dot,
 			//and delete BOTH dots when this animation is over.
-			this.eclipse = function(otherDot) {
+			this.mergeWith = function(otherDot) {
 				mergeWith = otherDot;
 				startTime = Date.now();
 				destX = otherDot.x;
 				destY = otherDot.y;
+				screen.remove(mergeWith);
+			}
+			
+			this.cloneMergeWith = function(otherDot) {
+				var clone = new DrawDot(destX, destY);
+				clone.mergeWith(otherDot);
+				return clone;
 			}
 		}
 
 		//ease timing function
 		function f(x) {
-			return x;
+			var a = 0;
+			var b = 0;
+			var c = .25;
+			var d = 1;
+			return 1+Math.pow(x-1,3);
 		}
 		
 		var centerX;
 		var centerY;
-		var radius = 1;
-		var spacing = 3;
-		var totalSpace = 30;
+		var radius = .4;
+		var gridSpace = 7;
 		window.onresize = function() {
 			canvas.width = window.innerWidth;
 			canvas.height = window.innerHeight;
 			centerX = window.innerWidth / 2;
 			centerY = window.innerHeight / 2;
-			scale = Math.min(window.innerWidth, window.innerHeight) / totalSpace;
+		context.scale(100, 100);
 		}; window.onresize();
+
+		game.mode = "grid";
+		setInterval(function() {
+		game.tap(3,3);
+		setTimeout(function() {
+			game.tap(3,4)
+		setTimeout(function() {
+			game.tap(4,3);
+		setTimeout(function() {
+			game.tap(2,3);
+		},1000);
+		},1000);
+		},1000);
+		},4000);
 	}
 </script>
 </head>
