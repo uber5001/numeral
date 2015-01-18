@@ -119,19 +119,16 @@ canvas {
 			var destY = y;
 			var mergeWith = null;
 			screen.add(this);
-
-			Object.defineProperty(this, "x", {get:function(){return x;}});
-			Object.defineProperty(this, "y", {get:function(){return y;}});
-
-			this.render = function() {
+			
+			Object.defineProperty(this, "x", {get:function(){return destX;}});
+			Object.defineProperty(this, "y", {get:function(){return destY;}});
+			
+			Object.defineProperty(this, "pos", {get:function(){
 				var completion = (Date.now() - startTime) / duration;
 				var renderX, renderY;
 				if (completion >= 1) {
 					renderX = (x = destX);
 					renderY = (y = destY);
-					if (mergeWith) {
-						screen.remove(this);
-					}
 				} else {
 					//only part of the way to dest...
 					var dist = f(completion);
@@ -140,10 +137,24 @@ canvas {
 					renderX = x + dist*dx;
 					renderY = y + dist*dy;
 				}
+				if (isNaN(renderY))
+					console.log('error');
+				return {
+					x: renderX,
+					y: renderY
+				};
+			}});
+
+			this.render = function() {
+				var completion = (Date.now() - startTime) / duration;
+				if (mergeWith && completion >= 1)
+					screen.remove(this);
 				context.beginPath();
-				context.arc(renderX, renderY, radius, 0, 2*Math.PI, false);
+				var render = this.pos;
+				context.arc(render.x, render.y, radius, 0, 2*Math.PI, false);
 				if (mergeWith) {
-					context.arc(mergeWith.x, mergeWith.y, radius, 0, 2*Math.PI, true);
+					var mergeRender = mergeWith.pos;
+					context.arc(mergeRender.x, mergeRender.y, radius, 0, 2*Math.PI, true);
 				}
 				context.fill();
 				
@@ -204,7 +215,7 @@ canvas {
 			canvas.height = window.innerHeight;
 			centerX = window.innerWidth / 2;
 			centerY = window.innerHeight / 2;
-		context.scale(100, 100);
+			context.scale(100, 100);
 		}; window.onresize();
 
 		game.mode = "grid";
@@ -216,10 +227,10 @@ canvas {
 			game.tap(4,3);
 		setTimeout(function() {
 			game.tap(2,3);
-		},1000);
-		},1000);
-		},1000);
-		},4000);
+		},500);
+		},500);
+		},500);
+		},2000);
 	}
 </script>
 </head>
