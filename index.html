@@ -41,7 +41,10 @@ canvas {
 		//background
 		screen.add({
 			render: function() {
-				context.clearRect(0, 0, window.innerWidth, window.innerHeight);
+				context.save();
+				context.setTransform(1, 0, 0, 1, 0, 0);
+				context.clearRect(0, 0, canvas.width, canvas.height);
+				context.restore();
 			}
 		});
 		var game = new (function() {
@@ -50,7 +53,7 @@ canvas {
 			var board = null;
 			
 			this.tap = function(x, y) {
-				board.tap(x, y);
+				board.tap(Math.round(x), Math.round(y));
 			}
 
 			var boardDefinitions = {
@@ -58,39 +61,79 @@ canvas {
 					//this is at most, a 7x7 board, where the starting position is ALWAYS in the middle.
 					//var boardSize = 7;
 					//var center = Math.floor(boardSize/2);
-					var gameState = [
-						[0, 0, 0, 0, 0, 0, 0],
-						[0, 0, 0, 0, 0, 0, 0],
-						[0, 0, 0, 0, 0, 0, 0],
-						[0, 0, 0, new DrawDot(3, 3), 0, 0, 0],
-						[0, 0, 0, 0, 0, 0, 0],
-						[0, 0, 0, 0, 0, 0, 0],
-						[0, 0, 0, 0, 0, 0, 0]
-					];
-					
-					this.tap = function(x, y) {
-						if (gameState[x][y]) {
-							var dot = gameState[x][y];
-							
-							function toggleTo(tx, ty) {
-								if (gameState[tx][ty]) {
-									gameState[x][y].cloneMergeWith(gameState[tx][ty]);
-									gameState[tx][ty] = 0;
-								} else {
-									gameState[tx][ty] = gameState[x][y].cloneTo(tx, ty);
+					var goal = new (function() {
+						this.render = function() {
+							context.beginPath();
+							context.arc(0, 0, radius, 0, 2*Math.PI);
+							context.lineWidth = 1/scale;
+							context.stroke();
+
+							context.lineWidth = 1;
+						}
+					})(); screen.add(goal);
+					var boundingBoxAdded = false;
+					var gameState = new (function() {
+						var state = [
+							[0, 0, 0, 0, 0, 0, 0],
+							[0, 0, 0, 0, 0, 0, 0],
+							[0, 0, 0, 0, 0, 0, 0],
+							[0, 0, 0, 0, 0, 0, 0],
+							[0, 0, 0, 0, 0, 0, 0],
+							[0, 0, 0, 0, 0, 0, 0],
+							[0, 0, 0, 0, 0, 0, 0]
+						];
+						this.state = state;
+						this.set = function(x, y) {
+							return {
+								to: function(val) {
+									state[x+3][y+3] = val;
 								}
 							}
-							toggleTo(x+1, y);
-							toggleTo(x-1, y);
-							toggleTo(x, y+1);
-							toggleTo(x, y-1);
-							gameState[x][y].done();
-							gameState[x][y] = 0;
-
-						} else {
-							console.log("invalid move!");
 						}
-						
+						this.get = function(x, y) {
+							return state[x+3][y+3];
+						}
+					})();
+					gameState.set(0,0).to(new DrawDot(0,0));
+					
+					this.tap = function(x, y) {
+						if (Math.abs(x) < 3 && Math.abs(y) < 3) {
+							if (gameState.get(x, y)) {
+								var dot = gameState.get(x, y);
+								
+								function toggleTo(tx, ty) {
+									if (gameState.get(tx, ty)) {
+										dot.cloneMergeWith(gameState.get(tx, ty));
+										gameState.set(tx, ty).to(0);
+									} else {
+										gameState.set(tx, ty).to(dot.cloneTo(tx, ty));
+									}
+								}
+								toggleTo(x+1, y);
+								toggleTo(x-1, y);
+								toggleTo(x, y+1);
+								toggleTo(x, y-1);
+								dot.done();
+								gameState.set(x, y).to(0);
+							}
+						} else {
+							screen.add(new (function() {
+								var startTime = Date.now();
+								var duration = 500;
+								this.render = function() {
+									var percentComplete = (Date.now() - startTime)/duration;
+									if (percentComplete >= 1) screen.remove(this);
+									context.beginPath();
+									context.strokeStyle = "rgba(0,0,0,"+(1-percentComplete)+")"
+									context.lineWidth = 1/scale;
+									context.rect(-2.5,-2.5,5,5);
+									context.stroke();
+
+									context.lineWidth = 1;
+									context.strokeStyle = "black";
+								}
+							})());
+						}
 					}
 				}
 			}
@@ -209,28 +252,40 @@ canvas {
 		var centerX;
 		var centerY;
 		var radius = .4;
-		var gridSpace = 7;
+		var space = 7;
+		var scale;
 		window.onresize = function() {
 			canvas.width = window.innerWidth;
 			canvas.height = window.innerHeight;
 			centerX = window.innerWidth / 2;
 			centerY = window.innerHeight / 2;
-			context.scale(100, 100);
+
+			//context scaling and positioning
+			scale = Math.min(window.innerWidth, window.innerHeight) / space;
+			context.translate(window.innerWidth/2, window.innerHeight/2);
+			context.scale(scale, scale);
 		}; window.onresize();
 
 		game.mode = "grid";
-		setInterval(function() {
-		game.tap(3,3);
-		setTimeout(function() {
-			game.tap(3,4)
-		setTimeout(function() {
-			game.tap(4,3);
-		setTimeout(function() {
-			game.tap(2,3);
-		},500);
-		},500);
-		},500);
-		},2000);
+		
+		window.addEventListener("mousedown", function(e) {
+			tap(e.clientX, e.clientY);
+		});
+		
+		window.addEventListener("touchstart", function(e) {
+			var touches = e.changedTouches;
+			for (var i = 0; i < touches.length; i++) {
+				var touch = touches[i];
+				console.log(i)
+				tap(touch.clientX, touch.clientY);
+			}
+		});
+
+		function tap(rawX, rawY) {
+			var x = (rawX - window.innerWidth/2)/scale;
+			var y = (rawY - window.innerHeight/2)/scale;
+			game.tap(x, y);
+		}
 	}
 </script>
 </head>
