@@ -18,6 +18,7 @@ canvas {
 		var screen = new (function() {
 			var actors = [];
 			var toRemove = [];
+			var animating = true;
 			this.add = function(actor) {
 				actors.push(actor);
 			}
@@ -25,7 +26,9 @@ canvas {
 				toRemove.push(actor);
 			}
 			function animate() {
-				requestAnimationFrame(animate);
+				if (animating)
+					requestAnimationFrame(animate);
+				animating = false;
 				for (var i in toRemove) {	
 					for (var j in actors) {
 						if (actors[j] == toRemove[i]) {
@@ -34,8 +37,16 @@ canvas {
 					}
 				}
 				toRemove = [];
-				for (var i in actors) actors[i].render();
+				for (var i in actors) {
+					if (actors[i].render()) {
+						animating = true;
+					}
+				}
 			} animate();
+			this.nudge = function() {
+				animating = true;
+				requestAnimationFrame(animate);
+			}
 		})();
 
 		//background
@@ -45,6 +56,7 @@ canvas {
 				context.setTransform(1, 0, 0, 1, 0, 0);
 				context.clearRect(0, 0, canvas.width, canvas.height);
 				context.restore();
+				return false;
 			}
 		});
 		var game = new (function() {
@@ -69,6 +81,7 @@ canvas {
 							context.stroke();
 
 							context.lineWidth = 1;
+							return false;
 						}
 					})(); screen.add(goal);
 					var boundingBoxAdded = false;
@@ -131,6 +144,7 @@ canvas {
 
 									context.lineWidth = 1;
 									context.strokeStyle = "black";
+									return true;
 								}
 							})());
 						}
@@ -200,7 +214,7 @@ canvas {
 					context.arc(mergeRender.x, mergeRender.y, radius, 0, 2*Math.PI, true);
 				}
 				context.fill();
-				
+				return completion < 1;
 			}
 			
 			//move to the location of another dot,
@@ -264,6 +278,8 @@ canvas {
 			scale = Math.min(window.innerWidth, window.innerHeight) / space;
 			context.translate(window.innerWidth/2, window.innerHeight/2);
 			context.scale(scale, scale);
+			screen.nudge();
+
 		}; window.onresize();
 
 		game.mode = "grid";
@@ -285,6 +301,7 @@ canvas {
 			var x = (rawX - window.innerWidth/2)/scale;
 			var y = (rawY - window.innerHeight/2)/scale;
 			game.tap(x, y);
+			screen.nudge();
 		}
 	}
 </script>
